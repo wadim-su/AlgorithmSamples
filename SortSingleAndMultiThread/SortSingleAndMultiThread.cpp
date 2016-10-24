@@ -52,16 +52,18 @@ mergeContainerEmpty(VectorOfPoint::const_iterator itL, VectorOfPoint::const_iter
 }
 
 void
-mergeContainerReady(VectorOfPoint::const_iterator itL, VectorOfPoint::const_iterator endL,
-                    VectorOfPoint::const_iterator itR, VectorOfPoint::const_iterator endR,
-                    VectorOfPoint& merged)
+mergeContainerReady(VectorOfPoint::iterator begin, const VectorOfPoint::const_iterator middle,
+                    const VectorOfPoint::const_iterator end, VectorOfPoint& mergedAux)
 {
-  if (merged.size() == 0)
-    throw std::logic_error("This function expects output container exact size to receive all data.");
+  if (mergedAux.size() < std::distance(VectorOfPoint::const_iterator(begin), end))
+    throw std::logic_error("This function expects auxiliary container size enough to receive all data.");
 
-  auto mergedIt = merged.begin();
+  auto itL = begin;
+  auto itR = middle;
 
-  while ((itL != endL) && (itR != endR))
+  auto mergedIt = mergedAux.begin();
+
+  while ((itL != middle) && (itR != end))
   {
     if (lessX(*itL, *itR))
     {
@@ -77,11 +79,15 @@ mergeContainerReady(VectorOfPoint::const_iterator itL, VectorOfPoint::const_iter
   }
 
   // It is possible that only one of (itL, itR) is not reached its end.
-  for (; itL != endL; ++itL, ++mergedIt)
+  for (; itL != middle; ++itL, ++mergedIt)
     *mergedIt = *itL;
 
-  for (; itR != endR; ++itR, ++mergedIt)
+  for (; itR != end; ++itR, ++mergedIt)
     *mergedIt = *itR;
+
+  // Copy data back into the input storage.
+  for (mergedIt = mergedAux.begin(); begin != end; ++begin, ++mergedIt)
+    *begin = *mergedIt;
 }
 
 void
@@ -92,6 +98,59 @@ sumData(VectorOfPoint::iterator begin, VectorOfPoint::iterator end)
   {
     sum += begin->x;
   }
+}
+
+void
+mySort(VectorOfPoint::iterator begin, VectorOfPoint::iterator end, VectorOfPoint& mergedAux)
+{
+  size_t dataSize = std::distance(begin, end);
+
+  switch (dataSize)
+  {
+  case 1:
+    // nothing to sort
+    break;
+  case 2:
+    {
+      VectorOfPoint::iterator second = begin + 1;
+      if (!lessX(*begin, *second))
+      {
+        mergedAux[0] = *begin;
+        *begin = *second;
+        *second = mergedAux[0];
+      }
+    }
+    break;
+  default:
+    {
+      size_t halfDataSize = dataSize / 2;
+      VectorOfPoint::iterator middle = begin + halfDataSize;
+      mySort(begin, middle, mergedAux);
+      mySort(middle, end, mergedAux);
+
+      mergeContainerReady(begin, middle, end, mergedAux);
+
+      //for (auto it = mergedAux.begin(); begin != end; ++begin, ++it)
+      //  *begin = *it;
+    }
+    break;
+  }
+}
+
+void
+singleThreadMySort(VectorOfPoint::iterator begin, VectorOfPoint::iterator end, const std::string& callName)
+{
+  Timer timerThread;
+  timerThread.Start();
+
+  size_t distance = std::distance(begin, end);
+  VectorOfPoint mergedAuxiliary(distance);
+
+  mySort(begin, end, mergedAuxiliary);
+
+  unsigned long dur = timerThread.GetMs();
+
+  std::cout << "Report: " << callName << ", duration (ms): " << dur << '\n';
 }
 
 void
@@ -110,15 +169,40 @@ singleThreadSort(VectorOfPoint::iterator begin, VectorOfPoint::iterator end, con
 }
 
 void
-multi2ThreadSort(VectorOfPoint& data)
+multiThreadSort(VectorOfPoint::iterator begin, VectorOfPoint::iterator end, const std::string& callName)
+{
+  size_t dataSize = std::distance(begin, end);
+
+  size_t halfDataSize = dataSize / 2;
+  VectorOfPoint::iterator middle = begin + halfDataSize;
+
+  std::thread thePartner(singleThreadMySort, begin, middle, callName + "_Partner");
+  singleThreadMySort(middle, end, callName + "_Main");
+
+  thePartner.join();
+
+  VectorOfPoint mergedAuxiliary(dataSize); // reserve needed size at initialization
+
+  Timer timerMerge;
+  timerMerge.Start();
+  mergeContainerReady(begin, middle, end, mergedAuxiliary);
+  //for (auto it = mergedAuxiliary.begin(); begin != end; ++begin, ++it)
+  //  *begin = *it;
+
+  unsigned long mergeDuration = timerMerge.GetMs();
+  std::cout << "Merge duration is (ms): " << mergeDuration << '\n';
+}
+
+void
+multi2ThreadSort(VectorOfPoint::iterator begin, VectorOfPoint::iterator end)
 {
   constexpr size_t coreCount = 2;
   constexpr size_t additionalThreadsCount = coreCount - 1;
 
-  size_t dataSize = data.size();
+  size_t dataSize = std::distance(begin, end);
   size_t partSize = dataSize / coreCount;
 
-  VectorOfPoint::iterator partBegin = data.begin();
+  VectorOfPoint::iterator partBegin = begin;
   VectorOfPoint::iterator partEnd   = partBegin + partSize;
 
   std::vector<std::thread> additionalThreads;
@@ -133,7 +217,7 @@ multi2ThreadSort(VectorOfPoint& data)
     callName = callPrefix;
     callName += std::to_string(i + 1);
 
-    additionalThreads.push_back(std::thread(singleThreadSort, partBegin, partEnd, callName));
+    additionalThreads.push_back(std::thread(singleThreadMySort, partBegin, partEnd, callName));
 
     partBegin = partEnd;
     partEnd = partBegin + partSize;
@@ -142,7 +226,7 @@ multi2ThreadSort(VectorOfPoint& data)
   callName = callPrefix;
   callName += "Main";
 
-  singleThreadSort(partBegin, data.end(), "multiThreadSort_Main");
+  singleThreadMySort(partBegin, end, callName);
 
   JoinThreads joiner(additionalThreads);
   joiner.Join();
@@ -150,9 +234,15 @@ multi2ThreadSort(VectorOfPoint& data)
   unsigned long dur = timerThread.GetMs();
   std::cout << "Threads time is (ms): " << dur << '\n';
 
-  VectorOfPoint unitedSorted(data.size()); // reserve needed size at initialization
-  unsigned long mergeDuration = timeFuncInvocation(mergeContainerReady, data.begin(), partBegin, partBegin, data.end(), unitedSorted);
-  data.swap(unitedSorted);
+  VectorOfPoint mergedAuxiliary(dataSize); // reserve needed size at initialization
+
+  Timer timerMerge;
+  timerMerge.Start();
+  mergeContainerReady(begin, partBegin, end, mergedAuxiliary);
+  //for (auto it = mergedAuxiliary.begin(); begin != end; ++begin, ++it)
+  //  *begin = *it;
+
+  unsigned long mergeDuration = timerMerge.GetMs();
   std::cout << "Merge duration is (ms): " << mergeDuration << '\n';
 }
 
@@ -180,15 +270,16 @@ ProcessFile(const std::string& fileName)
 
   std::ifstream inputStream(fileName);
 
-  VectorOfPoint inputDataSingleThread;
-  unsigned long readfileDuration = timeFuncInvocation(ReadInputTextData, inputStream, inputDataSingleThread);
+  VectorOfPoint inputData;
+  unsigned long readfileDuration = timeFuncInvocation(ReadInputTextData, inputStream, inputData);
 
   std::cout << "Read file duration is (ms): " << readfileDuration << '\n';
 
-  std::cout << "  Number of points read: " << inputDataSingleThread.size() << '\n';
+  std::cout << "  Number of points read: " << inputData.size() << '\n';
 
-  VectorOfPoint inputDataMultiThread = inputDataSingleThread;
-  VectorOfPoint inputDataTestThread = inputDataSingleThread;
+  VectorOfPoint inputDataSingleThread = inputData;
+  VectorOfPoint inputDataSingleMy     = inputData;
+  VectorOfPoint inputDataMultiThread  = inputData;
 
   std::cout << "Processing points..." << '\n';
 
@@ -200,15 +291,22 @@ ProcessFile(const std::string& fileName)
   VectorOfPoint::iterator singleThreadSortBegin = inputDataSingleThread.begin();
   VectorOfPoint::iterator singleThreadSortEnd = inputDataSingleThread.end();
 
-  unsigned long singleThreadDuration = timeFuncInvocation(singleThreadSort, singleThreadSortBegin, singleThreadSortEnd, "singleThreadSort");
-  unsigned long multiThreadDuration  = timeFuncInvocation(multi2ThreadSort, inputDataMultiThread);
+  unsigned long singleThreadDuration = timeFuncInvocation(singleThreadMySort, singleThreadSortBegin, singleThreadSortEnd, "singleThreadSort");
+  unsigned long singleMyDuration     = timeFuncInvocation(singleThreadSort, inputDataSingleMy.begin(), inputDataSingleMy.end(), "singleThreadMySort");
+  unsigned long multiThreadDuration  = timeFuncInvocation(multiThreadSort , inputDataMultiThread.begin(), inputDataMultiThread.end(), "multiThreadSort");
 
   if (inputDataSingleThread == inputDataMultiThread)
     std::cout << "The results of single- and milti-thread sorts do coincide." << '\n';
   else
     std::cout << "The results of single- and milti-thread sorts do not coincide!---------------------------" << '\n';
 
+  if (inputDataSingleThread == inputDataSingleMy)
+    std::cout << "The results of single- and My sorts do coincide." << '\n';
+  else
+    std::cout << "The results of single- and My sorts do not coincide!---------------------------" << '\n';
+
   std::cout << "Single thread sort duration is (ms): " << singleThreadDuration << '\n';
+  std::cout << "Single thre Mysort duration is (ms): " << singleMyDuration << '\n';
   std::cout << "Multi  thread sort duration is (ms): " << multiThreadDuration << '\n';
 
   if (singleThreadDuration > multiThreadDuration)
