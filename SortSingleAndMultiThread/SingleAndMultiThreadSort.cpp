@@ -21,45 +21,7 @@
 #include <fstream>
 
 
-void
-myMerge(VectorOfPoint::iterator begin, const VectorOfPoint::const_iterator middle,
-        const VectorOfPoint::const_iterator end, VectorOfPoint& mergedAux)
-{
-  // Turn it off for the sake of throughput.
-  //if (mergedAux.size() < std::distance(VectorOfPoint::const_iterator(begin), end))
-  //  throw std::logic_error("This function expects auxiliary container size enough to receive all data.");
 
-  auto itL = begin;
-  auto itR = middle;
-
-  auto mergedIt = mergedAux.begin();
-
-  while ((itL != middle) && (itR != end))
-  {
-    if (lessX(*itL, *itR))
-    {
-      *mergedIt = *itL;
-      ++itL;
-    }
-    else
-    {
-      *mergedIt = *itR;
-      ++itR;
-    }
-    ++mergedIt;
-  }
-
-  // It is possible that only one of (itL, itR) is not reached its end.
-  for (; itL != middle; ++itL, ++mergedIt)
-    *mergedIt = *itL;
-
-  for (; itR != end; ++itR, ++mergedIt)
-    *mergedIt = *itR;
-
-  // Copy data back into the input storage.
-  for (mergedIt = mergedAux.begin(); begin != end; ++begin, ++mergedIt)
-    *begin = *mergedIt;
-}
 
 void
 sumData(VectorOfPoint::iterator begin, VectorOfPoint::iterator end)
@@ -68,40 +30,6 @@ sumData(VectorOfPoint::iterator begin, VectorOfPoint::iterator end)
   for (; begin != end; ++begin)
   {
     sum += begin->x;
-  }
-}
-
-void
-mySort(VectorOfPoint::iterator begin, VectorOfPoint::iterator end, VectorOfPoint& mergedAux)
-{
-  size_t dataSize = std::distance(begin, end);
-
-  switch (dataSize)
-  {
-  case 1:
-    // nothing to sort
-    break;
-  case 2:
-    {
-      VectorOfPoint::iterator second = begin + 1;
-      if (!lessX(*begin, *second))
-      {
-        mergedAux[0] = *begin;
-        *begin = *second;
-        *second = mergedAux[0];
-      }
-    }
-    break;
-  default:
-    {
-      size_t halfDataSize = dataSize / 2;
-      VectorOfPoint::iterator middle = begin + halfDataSize;
-      mySort(begin, middle, mergedAux);
-      mySort(middle, end, mergedAux);
-
-      myMerge(begin, middle, end, mergedAux);
-    }
-    break;
   }
 }
 
@@ -175,21 +103,6 @@ multiThreadSort(VectorOfPoint::iterator begin, VectorOfPoint::iterator end, cons
   multiThreadSortRecursive(begin, end, mergedAuxiliary, callName, 1, maxMultithreadLevel);
 }
 
-bool
-operator ==(const VectorOfPoint& left, const VectorOfPoint& right)
-{
-  if (left.size() != right.size())
-    return false;
-
-  for (auto it = left.begin(), end = left.end(), rightIt = right.begin(); it != end; ++it, ++rightIt)
-  {
-    if (it->x != rightIt->x) // sorting and comparison goes only by x-coordinate
-      return false;
-  }
-
-  return true;
-}
-
 void
 ProcessFile(const std::string& fileName)
 {
@@ -197,12 +110,25 @@ ProcessFile(const std::string& fileName)
 
   std::cout << "Reading data from file..." << '\n';
 
+  Timer timerReadFile;
+  timerReadFile.Start();
+
   std::ifstream inputStream(fileName);
 
-  VectorOfPoint inputData;
-  unsigned long readfileDuration = timeFuncInvocation(ReadInputTextData, inputStream, inputData);
+  //VectorOfPoint inputData;
+  //unsigned long readfileDuration = timeFuncInvocation(ReadInputTextData, inputStream, inputData);
 
-  std::cout << "Read file duration is (ms): " << readfileDuration << '\n';
+  size_t numberOfPoints = 0;
+  ReadNumberOfPoits(inputStream, numberOfPoints);
+
+  VectorOfPoint inputData(numberOfPoints); // set needed size at construction
+
+  size_t totalReadPointCount = 0;
+  ReadDataBundle(inputStream, numberOfPoints, inputData.begin(), totalReadPointCount);
+
+  unsigned long readFileDuration = timerReadFile.GetMs();
+
+  std::cout << "Read file duration is (ms): " << readFileDuration << '\n';
 
   std::cout << "  Number of points read: " << inputData.size() << '\n';
 
@@ -215,7 +141,6 @@ ProcessFile(const std::string& fileName)
 
   unsigned int coreCount = std::thread::hardware_concurrency();
   size_t maxMultithreadLevel = coreCount / 2;
-  //maxMultithreadLevel = 0;
 
   unsigned long singleThreadDuration = timeFuncInvocation(singleThreadSort, inputDataSingleThread.begin(), inputDataSingleThread.end(), "singleThreadSort");
   unsigned long multiThreadDuration  = timeFuncInvocation(multiThreadSort , inputDataMultiThread.begin() , inputDataMultiThread.end() , "multiThreadSort", maxMultithreadLevel);
@@ -269,4 +194,3 @@ main(int argc, char* argv[])
 
   return 0;
 }
-

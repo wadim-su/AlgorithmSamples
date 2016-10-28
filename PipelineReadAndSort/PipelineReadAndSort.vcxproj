@@ -19,11 +19,10 @@
     </ProjectConfiguration>
   </ItemGroup>
   <PropertyGroup Label="Globals">
-    <ProjectGuid>{AE2DA76F-B4AE-4B5A-8685-A26839943BF9}</ProjectGuid>
+    <ProjectGuid>{E5D5555E-BDA2-4A95-BFA8-D50120FC6894}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>
-    <RootNamespace>SortSingleAndMultiThread</RootNamespace>
+    <RootNamespace>PipelineReadAndSort</RootNamespace>
     <WindowsTargetPlatformVersion>8.1</WindowsTargetPlatformVersion>
-    <ProjectName>SingleAndMultiThreadSort</ProjectName>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
@@ -72,8 +71,8 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <LinkIncremental>true</LinkIncremental>
-    <IncludePath>C:\Study\AlgorithmSamples;$(IncludePath)</IncludePath>
     <LibraryPath>C:\Study\AlgorithmSamples\Debug;$(LibraryPath)</LibraryPath>
+    <IncludePath>C:\Study\AlgorithmSamples;$(IncludePath)</IncludePath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <LinkIncremental>true</LinkIncremental>
@@ -97,7 +96,6 @@
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <AdditionalDependencies>CommonCode.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
@@ -150,23 +148,24 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <Text Include="..\InputData\PointsCount2MRange32K.txt" />
+    <Text Include="..\InputData\PointsCount500KRange32K.txt" />
+    <Text Include="..\InputData\PointsCount5KRange32K.txt" />
+    <Text Include="..\InputData\PointsCount5MRange32K.txt" />
+    <Text Include="ReadMe.txt" />
+  </ItemGroup>
+  <ItemGroup>
     <ClInclude Include="stdafx.h" />
     <ClInclude Include="targetver.h" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="SingleAndMultiThreadSort.cpp" />
+    <ClCompile Include="PipelineReadAndSort.cpp" />
     <ClCompile Include="stdafx.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Create</PrecompiledHeader>
     </ClCompile>
-  </ItemGroup>
-  <ItemGroup>
-    <Text Include="..\InputData\PointsCount2MRange32K.txt" />
-    <Text Include="..\InputData\PointsCount500KRange32K.txt" />
-    <Text Include="..\InputData\PointsCount5KRange32K.txt" />
-    <Text Include="..\InputData\PointsCount5MRange32K.txt" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

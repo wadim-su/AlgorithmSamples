@@ -14,8 +14,23 @@
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
     </Filter>
     <Filter Include="Input Data Files">
-      <UniqueIdentifier>{2cde689d-1ff9-46c9-ac4f-b749415b01b4}</UniqueIdentifier>
+      <UniqueIdentifier>{31e3ef04-9147-47a1-85b4-6f02e63a5eef}</UniqueIdentifier>
     </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <Text Include="ReadMe.txt" />
+    <Text Include="..\InputData\PointsCount2MRange32K.txt">
+      <Filter>Input Data Files</Filter>
+    </Text>
+    <Text Include="..\InputData\PointsCount5KRange32K.txt">
+      <Filter>Input Data Files</Filter>
+    </Text>
+    <Text Include="..\InputData\PointsCount5MRange32K.txt">
+      <Filter>Input Data Files</Filter>
+    </Text>
+    <Text Include="..\InputData\PointsCount500KRange32K.txt">
+      <Filter>Input Data Files</Filter>
+    </Text>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="stdafx.h">
@@ -29,22 +44,8 @@
     <ClCompile Include="stdafx.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="SingleAndMultiThreadSort.cpp">
+    <ClCompile Include="PipelineReadAndSort.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-  </ItemGroup>
-  <ItemGroup>
-    <Text Include="..\InputData\PointsCount2MRange32K.txt">
-      <Filter>Input Data Files</Filter>
-    </Text>
-    <Text Include="..\InputData\PointsCount5KRange32K.txt">
-      <Filter>Input Data Files</Filter>
-    </Text>
-    <Text Include="..\InputData\PointsCount5MRange32K.txt">
-      <Filter>Input Data Files</Filter>
-    </Text>
-    <Text Include="..\InputData\PointsCount500KRange32K.txt">
-      <Filter>Input Data Files</Filter>
-    </Text>
   </ItemGroup>
 </Project>

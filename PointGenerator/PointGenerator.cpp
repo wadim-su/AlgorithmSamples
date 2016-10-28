@@ -82,7 +82,6 @@ WritePointsFile(int32_t leftBoundary, int32_t rightBoundary, size_t numberOfPoin
   }
 }
 
-
 int main()
 {
   constexpr size_t numberOfPoints20   =      20;
