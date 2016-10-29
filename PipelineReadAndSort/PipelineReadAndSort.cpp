@@ -48,12 +48,9 @@ using VectorOfPointRange = std::vector<PointRange>;
 using QueueOfPointRange = std::queue<PointRange>;
 
 void
-sortThreadProcedure(QueueOfPointRange& readToSortQueue, QueueOfPointRange& sortToMergeQueue, size_t inputDataSize)
+SortThreadProcedure(QueueOfPointRange& readToSortQueue, QueueOfPointRange& sortToMergeQueue, size_t inputDataSize)
 {
   VectorOfPoint mergedAuxiliary(inputDataSize);
-
-  bool firstTime = true;
-  PointRange checkingRange;
 
   while (true)
   {
@@ -72,17 +69,6 @@ sortThreadProcedure(QueueOfPointRange& readToSortQueue, QueueOfPointRange& sortT
 
     locker.unlock();
 
-    if (!firstTime)
-    {
-      if (checkingRange.beginIndex >= rangeToSort.beginIndex)
-        throw std::runtime_error("index wrong begin");
-      if (checkingRange.endIndex >= rangeToSort.endIndex)
-        throw std::runtime_error("index wrong end");
-    }
-    else
-      firstTime = false;
-    checkingRange = rangeToSort;
-
     mySort(rangeToSort.begin, rangeToSort.end, mergedAuxiliary);
 
     {
@@ -94,7 +80,7 @@ sortThreadProcedure(QueueOfPointRange& readToSortQueue, QueueOfPointRange& sortT
 }
 
 void
-mergeThreadProcedure(QueueOfPointRange& sortToMergeQueue, size_t inputDataSize)
+MergeThreadProcedure(QueueOfPointRange& sortToMergeQueue, size_t inputDataSize)
 {
   class MergingStack
   {
@@ -104,45 +90,20 @@ mergeThreadProcedure(QueueOfPointRange& sortToMergeQueue, size_t inputDataSize)
       _mergedAuxiliary(inputDataSize)
     {}
 
-    void pushAndMerge(const PointRange& orinaryRange)
+    void PushAndMerge(const PointRange& orinaryRange)
     {
       _stack.push_back(orinaryRange);
-
-      //std::cout << "Pushed range of distance: " << distance(orinaryRange) << '\n';
-
-      if (_stack.size() > 2)
-      {
-        PointRange& last       = _stack[_stack.size() - 1];
-        PointRange& lastButOne = _stack[_stack.size() - 2];
-
-        if (lastButOne.endIndex != last.beginIndex)
-            throw std::runtime_error("index wrong merge");
-
-        if (lastButOne.end != last.begin)
-          throw std::runtime_error("iterator wrong merge");
-      }
-
-      merge();
+      MergeTopRecursively();
     }
 
-    void mergeAll()
+    void MergeAll()
     {
       for (int index = _stack.size() - 1; index >= 1; index--)
       {
         PointRange top = _stack[index];
         PointRange topButOne = _stack[index - 1];
 
-        myMerge(topButOne.begin, top.begin, top.end, _mergedAuxiliary);
-
-        //std::cout << "Merged 2 ranges of distances: " << distance(top) << " and :" << distance(topButOne) << '\n';
-
-        _stack.pop_back();
-        _stack.pop_back();
-
-        PointRange unitedRange(topButOne.begin, top.end, topButOne.beginIndex, top.endIndex);
-        _stack.push_back(unitedRange);
-
-        //std::cout << "Pushed united range of distance: " << distance(unitedRange) << '\n';
+        MergeTop(top, topButOne);
       }
     }
 
@@ -150,7 +111,7 @@ mergeThreadProcedure(QueueOfPointRange& sortToMergeQueue, size_t inputDataSize)
     VectorOfPointRange _stack;
     VectorOfPoint _mergedAuxiliary;
 
-    void merge()
+    void MergeTopRecursively()
     {
       size_t stackSize = _stack.size();
 
@@ -163,36 +124,30 @@ mergeThreadProcedure(QueueOfPointRange& sortToMergeQueue, size_t inputDataSize)
       PointRange top = _stack[topIndex];
       PointRange topButOne = _stack[topButOneIndex];
 
-      if (distance(top) == distance(topButOne))
+      if (Distance(top) == Distance(topButOne))
       {
-        // Merge points inside these 2 ranges.
-        myMerge(topButOne.begin, top.begin, top.end, _mergedAuxiliary);
-
-        //std::cout << "Merged 2 ranges of distance: " << distance(top) << '\n';
-
-        // Pop these 2 ranges.
-        _stack.pop_back();
-        _stack.pop_back();
-
-        // Push the new united range into the stack.
-        PointRange unitedRange(topButOne.begin, top.end, topButOne.beginIndex, top.endIndex);
-        _stack.push_back(unitedRange);
-
-        //std::cout << "Pushed united range of distance: " << distance(unitedRange) << '\n';
-
-        if (topButOne.endIndex != top.beginIndex)
-          throw std::runtime_error("index wrong merge top");
-
-        if (topButOne.end != top.begin)
-          throw std::runtime_error("iterator wrong merge top");
-
+        MergeTop(top, topButOne);
 
         // Call 'merge' on the modified stack to check if further merge is possible.
-        merge();
+        MergeTopRecursively();
       }
     }
 
-    size_t distance(const PointRange& range)
+    void MergeTop(PointRange top, PointRange topButOne)
+    {
+      // Merge points inside these 2 ranges.
+      myMerge(topButOne.begin, top.begin, top.end, _mergedAuxiliary);
+
+      // Pop these 2 ranges.
+      _stack.pop_back();
+      _stack.pop_back();
+
+      // Push the new united range into the stack.
+      PointRange unitedRange(topButOne.begin, top.end, topButOne.beginIndex, top.endIndex);
+      _stack.push_back(unitedRange);
+    }
+
+    size_t Distance(const PointRange& range)
     {
       return (range.end - range.begin);
     }
@@ -200,14 +155,11 @@ mergeThreadProcedure(QueueOfPointRange& sortToMergeQueue, size_t inputDataSize)
 
   MergingStack mergingStack(inputDataSize);
 
-  bool firstTime = true;
-  PointRange checkingRange;
-
   while (true)
   {
     if (sortFinishedFlag && sortToMergeQueue.empty())
     {
-      mergingStack.mergeAll();
+      mergingStack.MergeAll();
       break;
     }
 
@@ -220,18 +172,7 @@ mergeThreadProcedure(QueueOfPointRange& sortToMergeQueue, size_t inputDataSize)
 
     locker.unlock();
 
-    if (!firstTime)
-    {
-      if (checkingRange.beginIndex >= rangeToMerge.beginIndex)
-        throw std::runtime_error("index wrong begin");
-      if (checkingRange.endIndex >= rangeToMerge.endIndex)
-        throw std::runtime_error("index wrong end");
-    }
-    else
-      firstTime = false;
-    checkingRange = rangeToMerge;
-
-    mergingStack.pushAndMerge(rangeToMerge);
+    mergingStack.PushAndMerge(rangeToMerge);
   }
 }
 
@@ -268,10 +209,10 @@ ProcessFile(const std::string& fileName)
   QueueOfPointRange sortToMergeQueue;
   //std::condition_variable sortToMergeCondition;
 
-  std::thread sorter(sortThreadProcedure, std::ref(readToSortQueue), std::ref(sortToMergeQueue), numberOfPoints);
+  std::thread sorter(SortThreadProcedure, std::ref(readToSortQueue), std::ref(sortToMergeQueue), numberOfPoints);
   JoinThread joinSorter(sorter);
 
-  std::thread merger(mergeThreadProcedure, std::ref(sortToMergeQueue), numberOfPoints);
+  std::thread merger(MergeThreadProcedure, std::ref(sortToMergeQueue), numberOfPoints);
   JoinThread joinMerger(merger);
 
   readFinishedFlag = false;
@@ -330,14 +271,7 @@ ProcessFile(const std::string& fileName)
 
   std::cout << "Pipeline read and sort duration is (ms): " << pipelineReadAndSortDuration << '\n';
 
-//   std::ofstream ofile("InputData.txt");
-//   for each (auto&& point in inputData)
-//     //ofile << point.x << ' ' << point.y << '\n';
-//     ofile << point.x << '\n';
-// 
-//   std::ofstream ofileCheck("InputDataForCheck.txt");
-//   for each (auto&& point in inputDataForCheck)
-//     ofileCheck << point.x << '\n';
+  std::cout << "Sort to read data delay (ms): " << (pipelineReadAndSortDuration - readFileDuration) << '\n';
 
   std::cout << '\n';
 
@@ -345,9 +279,6 @@ ProcessFile(const std::string& fileName)
   // Создать два вспомогательных потока: для сортировки и для мерджа, запустить их на выполнение.
   // Вопомогательные потоки доложны остановиться сами, по флагу. А я потом сделаю им Join, чтобы правильно освободить
   // ресурсы в переменных потоков.
-
-  // Запустить цикл чтения данных из файла, пачками.
-  // Когда все данные будут считаны - выставить флаг останова, вызвать Join().
 }
 
 int
