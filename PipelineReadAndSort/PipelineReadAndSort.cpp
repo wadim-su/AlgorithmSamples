@@ -9,8 +9,8 @@
 #include <vector>
 #include <queue>
 
-#include <thread>
 #include <mutex>
+#include <future>
 
 #include <stdexcept>
 #include <iostream>
@@ -212,11 +212,8 @@ ProcessFile(const std::string& fileName)
   QueueOfPointRange readToSortQueue;
   QueueOfPointRange sortToMergeQueue;
 
-  std::thread sorter(SortThreadProcedure, std::ref(readToSortQueue), std::ref(sortToMergeQueue), numberOfPoints);
-  JoinThread joinSorter(sorter);
-
-  std::thread merger(MergeThreadProcedure, std::ref(sortToMergeQueue), numberOfPoints);
-  JoinThread joinMerger(merger);
+  auto sortComplete  = std::async(std::launch::async, SortThreadProcedure , std::ref(readToSortQueue) , std::ref(sortToMergeQueue), numberOfPoints);
+  auto mergeComplete = std::async(std::launch::async, MergeThreadProcedure, std::ref(sortToMergeQueue), numberOfPoints);
 
   readFinishedFlag = false;
   sortFinishedFlag = false;
@@ -248,8 +245,8 @@ ProcessFile(const std::string& fileName)
   if (totalReadPointCount != numberOfPoints)
     throw std::runtime_error("Number of points specified at the beginning of the stream does not coincide with actual number of points in the stream.");
 
-  sorter.join();
-  merger.join();
+  sortComplete.wait();
+  mergeComplete.wait();
 
   unsigned long pipelineReadAndSortDuration = timer.GetMs();
 
