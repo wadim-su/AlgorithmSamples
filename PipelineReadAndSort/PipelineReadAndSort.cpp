@@ -18,12 +18,7 @@
 #include <fstream>
 
 
-std::mutex readToSortMutex;
-std::condition_variable readToSortCondition;
 volatile bool readFinishedFlag;
-
-std::mutex sortToMergeMutex;
-std::condition_variable sortToMergeCondition;
 volatile bool sortFinishedFlag;
 
 struct PointRange
@@ -31,21 +26,51 @@ struct PointRange
   VectorOfPoint::iterator begin;
   VectorOfPoint::iterator end;
 
-  size_t beginIndex;
-  size_t endIndex;
-
   PointRange() = default;
 
-  PointRange(const VectorOfPoint::iterator& _begin, const VectorOfPoint::iterator& _end, size_t _beginIndex, size_t _endIndex) :
+  PointRange(const VectorOfPoint::iterator& _begin, const VectorOfPoint::iterator& _end) :
     begin(_begin),
-    end  (_end),
-    beginIndex(_beginIndex),
-    endIndex  (_endIndex)
+    end  (_end)
   {}
 };
 
+template<typename T>
+class ThreadsafeQueue
+{
+public:
+  ThreadsafeQueue() = default;
+  ThreadsafeQueue(const ThreadsafeQueue&) = delete;
+  ThreadsafeQueue& operator=(const ThreadsafeQueue&) = delete;
+
+  void push(T newValue)
+  {
+    std::lock_guard<std::mutex> locker(_mutex);
+    _queue.push(newValue);
+    _condition.notify_one();
+  }
+
+  void waitAndPop(T& value)
+  {
+    std::unique_lock<std::mutex> locker(_mutex);
+    _condition.wait(locker, [this] { return !_queue.empty(); });
+    value = _queue.front();
+    _queue.pop();
+  }
+
+  bool empty() const
+  {
+    std::lock_guard<std::mutex> locker(_mutex);
+    return _queue.empty();
+  }
+
+private:
+  mutable std::mutex _mutex;
+  std::queue<T> _queue;
+  std::condition_variable _condition;
+};
+
 using VectorOfPointRange = std::vector<PointRange>;
-using QueueOfPointRange = std::queue<PointRange>;
+using QueueOfPointRange = ThreadsafeQueue<PointRange>;
 
 void
 SortThreadProcedure(QueueOfPointRange& readToSortQueue, QueueOfPointRange& sortToMergeQueue, size_t inputDataSize)
@@ -60,22 +85,12 @@ SortThreadProcedure(QueueOfPointRange& readToSortQueue, QueueOfPointRange& sortT
       break;
     }
 
-    std::unique_lock<std::mutex> locker(readToSortMutex);
-
-    readToSortCondition.wait(locker, [&] { return !readToSortQueue.empty(); });
-
-    PointRange rangeToSort = readToSortQueue.front();
-    readToSortQueue.pop();
-
-    locker.unlock();
+    PointRange rangeToSort;
+    readToSortQueue.waitAndPop(rangeToSort);
 
     mySort(rangeToSort.begin, rangeToSort.end, mergedAuxiliary);
 
-    {
-      std::lock_guard<std::mutex> locker2(sortToMergeMutex);
-      sortToMergeQueue.push(rangeToSort);
-      sortToMergeCondition.notify_one();
-    }
+    sortToMergeQueue.push(rangeToSort);
   }
 }
 
@@ -143,7 +158,7 @@ MergeThreadProcedure(QueueOfPointRange& sortToMergeQueue, size_t inputDataSize)
       _stack.pop_back();
 
       // Push the new united range into the stack.
-      PointRange unitedRange(topButOne.begin, top.end, topButOne.beginIndex, top.endIndex);
+      PointRange unitedRange(topButOne.begin, top.end);
       _stack.push_back(unitedRange);
     }
 
@@ -163,14 +178,8 @@ MergeThreadProcedure(QueueOfPointRange& sortToMergeQueue, size_t inputDataSize)
       break;
     }
 
-    std::unique_lock<std::mutex> locker(sortToMergeMutex);
-
-    sortToMergeCondition.wait(locker, [&] { return !sortToMergeQueue.empty(); });
-
-    PointRange rangeToMerge = sortToMergeQueue.front();
-    sortToMergeQueue.pop();
-
-    locker.unlock();
+    PointRange rangeToMerge;
+    sortToMergeQueue.waitAndPop(rangeToMerge);
 
     mergingStack.PushAndMerge(rangeToMerge);
   }
@@ -195,19 +204,13 @@ ProcessFile(const std::string& fileName)
   VectorOfPoint inputDataForCheck;
   inputDataForCheck.reserve(numberOfPoints);
 
-  size_t bundleSize = 5000; // This may be tuned
-  //bundleSize = 50;
+  size_t bundleSize = numberOfPoints / 100; // This may be tuned
+  //bundleSize = 5000;
   //bundleSize = 499670;
-  bundleSize = numberOfPoints / 100;
   size_t numberOfBundles = static_cast<size_t>(ceil((double)numberOfPoints / bundleSize));
 
-  //std::mutex readToSortMutex;
   QueueOfPointRange readToSortQueue;
-  //std::condition_variable readToSortCondition;
-
-  //std::mutex sortToMergeMutex;
   QueueOfPointRange sortToMergeQueue;
-  //std::condition_variable sortToMergeCondition;
 
   std::thread sorter(SortThreadProcedure, std::ref(readToSortQueue), std::ref(sortToMergeQueue), numberOfPoints);
   JoinThread joinSorter(sorter);
@@ -222,25 +225,18 @@ ProcessFile(const std::string& fileName)
   size_t readPointCount;
   PointRange readRange;
   readRange.begin = inputData.begin();
-  readRange.beginIndex = 0;
   for (size_t bundle = 0; bundle < numberOfBundles; bundle++)
   {
     readPointCount = 0;
     ReadDataBundle(inputStream, bundleSize, readRange.begin, readPointCount);
     readRange.end = readRange.begin + readPointCount;
-    readRange.endIndex = readRange.beginIndex + readPointCount;
     totalReadPointCount += readPointCount;
 
     for (auto it = readRange.begin; it != readRange.end; ++it)
       inputDataForCheck.push_back(*it);
 
-    {
-      std::lock_guard<std::mutex> locker(readToSortMutex);
-      readToSortQueue.push(readRange);
-      readToSortCondition.notify_one();
-    }
+    readToSortQueue.push(readRange);
     readRange.begin = readRange.end;
-    readRange.beginIndex = readRange.endIndex;
   }
 
   unsigned long readFileDuration = timer.GetMs();
