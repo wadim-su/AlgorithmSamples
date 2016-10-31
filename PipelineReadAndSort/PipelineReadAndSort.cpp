@@ -11,15 +11,13 @@
 
 #include <mutex>
 #include <future>
+#include <atomic>
 
 #include <stdexcept>
 #include <iostream>
 #include <sstream>
 #include <fstream>
 
-
-volatile bool readFinishedFlag;
-volatile bool sortFinishedFlag;
 
 struct PointRange
 {
@@ -73,7 +71,8 @@ using VectorOfPointRange = std::vector<PointRange>;
 using QueueOfPointRange = ThreadsafeQueue<PointRange>;
 
 void
-SortThreadProcedure(QueueOfPointRange& readToSortQueue, QueueOfPointRange& sortToMergeQueue, size_t inputDataSize)
+SortThreadProcedure(QueueOfPointRange& readToSortQueue, QueueOfPointRange& sortToMergeQueue,
+  const std::atomic_bool& readFinishedFlag, std::atomic_bool& sortFinishedFlag, size_t inputDataSize)
 {
   VectorOfPoint mergedAuxiliary(inputDataSize);
 
@@ -95,7 +94,7 @@ SortThreadProcedure(QueueOfPointRange& readToSortQueue, QueueOfPointRange& sortT
 }
 
 void
-MergeThreadProcedure(QueueOfPointRange& sortToMergeQueue, size_t inputDataSize)
+MergeThreadProcedure(QueueOfPointRange& sortToMergeQueue, const std::atomic_bool& sortFinishedFlag, size_t inputDataSize)
 {
   class MergingStack
   {
@@ -209,14 +208,15 @@ ProcessFile(const std::string& fileName)
   //bundleSize = 499670;
   size_t numberOfBundles = static_cast<size_t>(ceil((double)numberOfPoints / bundleSize));
 
+  std::atomic_bool readFinishedFlag = false;
+  std::atomic_bool sortFinishedFlag = false;
+
   QueueOfPointRange readToSortQueue;
   QueueOfPointRange sortToMergeQueue;
 
-  auto sortComplete  = std::async(std::launch::async, SortThreadProcedure , std::ref(readToSortQueue) , std::ref(sortToMergeQueue), numberOfPoints);
-  auto mergeComplete = std::async(std::launch::async, MergeThreadProcedure, std::ref(sortToMergeQueue), numberOfPoints);
-
-  readFinishedFlag = false;
-  sortFinishedFlag = false;
+  auto sortComplete  = std::async(std::launch::async, SortThreadProcedure, std::ref(readToSortQueue), std::ref(sortToMergeQueue),
+    std::ref(readFinishedFlag), std::ref(sortFinishedFlag), numberOfPoints);
+  auto mergeComplete = std::async(std::launch::async, MergeThreadProcedure, std::ref(sortToMergeQueue), std::ref(sortFinishedFlag), numberOfPoints);
 
   size_t totalReadPointCount = 0;
   size_t readPointCount;
@@ -267,11 +267,6 @@ ProcessFile(const std::string& fileName)
   std::cout << "Sort to read data delay (ms): " << (pipelineReadAndSortDuration - readFileDuration) << '\n';
 
   std::cout << '\n';
-
-  // К коду из книжки добавить флаг останова. Какой-нибудь volatile переменную? Атомик оператионз?
-  // Создать два вспомогательных потока: для сортировки и для мерджа, запустить их на выполнение.
-  // Вопомогательные потоки доложны остановиться сами, по флагу. А я потом сделаю им Join, чтобы правильно освободить
-  // ресурсы в переменных потоков.
 }
 
 int
