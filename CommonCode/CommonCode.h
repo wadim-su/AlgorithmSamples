@@ -47,10 +47,11 @@ bool operator ==(const VectorOfPoint& left, const VectorOfPoint& right);
 // Divide-and-conquer sorting functions
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void myMerge(VectorOfPoint::iterator begin, const VectorOfPoint::const_iterator middle,
-             const VectorOfPoint::const_iterator end, VectorOfPoint& mergedAux);
+void myMerge(VectorOfPoint::iterator begin, const VectorOfPoint::const_iterator& middle, const VectorOfPoint::const_iterator& end,
+             VectorOfPoint::iterator mergeBegin, const VectorOfPoint::const_iterator& mergeEnd);
 
-void mySort(VectorOfPoint::iterator begin, VectorOfPoint::iterator end, VectorOfPoint& mergedAux);
+void mySort(VectorOfPoint::iterator begin, const VectorOfPoint::const_iterator& end,
+            VectorOfPoint::iterator mergeBegin, const VectorOfPoint::const_iterator& mergeEnd);
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // class Timer

@@ -83,17 +83,17 @@ operator ==(const VectorOfPoint& left, const VectorOfPoint& right)
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 void
-myMerge(VectorOfPoint::iterator begin, const VectorOfPoint::const_iterator middle,
-  const VectorOfPoint::const_iterator end, VectorOfPoint& mergedAux)
+myMerge(VectorOfPoint::iterator begin, const VectorOfPoint::const_iterator& middle, const VectorOfPoint::const_iterator& end,
+        VectorOfPoint::iterator mergeBegin, const VectorOfPoint::const_iterator& mergeEnd)
 {
   // Turn it off for the sake of throughput.
-  //if (mergedAux.size() < std::distance(VectorOfPoint::const_iterator(begin), end))
+  //if (std::distance(static_cast<VectorOfPoint::const_iterator>(mergeBegin), mergeEnd) < std::distance(VectorOfPoint::const_iterator(begin), end))
   //  throw std::logic_error("This function expects auxiliary container size enough to receive all data.");
 
   auto itL = begin;
   auto itR = middle;
 
-  auto mergedIt = mergedAux.begin();
+  auto mergedIt = mergeBegin;
 
   while ((itL != middle) && (itR != end))
   {
@@ -118,14 +118,15 @@ myMerge(VectorOfPoint::iterator begin, const VectorOfPoint::const_iterator middl
     *mergedIt = *itR;
 
   // Copy data back into the input storage.
-  for (mergedIt = mergedAux.begin(); begin != end; ++begin, ++mergedIt)
-    *begin = *mergedIt;
+  for (; begin != end; ++begin, ++mergeBegin)
+    *begin = *mergeBegin;
 }
 
 void
-mySort(VectorOfPoint::iterator begin, VectorOfPoint::iterator end, VectorOfPoint& mergedAux)
+mySort(VectorOfPoint::iterator begin, const VectorOfPoint::const_iterator& end,
+       VectorOfPoint::iterator mergeBegin, const VectorOfPoint::const_iterator& mergeEnd)
 {
-  size_t dataSize = std::distance(begin, end);
+  size_t dataSize = std::distance(static_cast<VectorOfPoint::const_iterator>(begin), end);
 
   switch (dataSize)
   {
@@ -137,20 +138,21 @@ mySort(VectorOfPoint::iterator begin, VectorOfPoint::iterator end, VectorOfPoint
     VectorOfPoint::iterator second = begin + 1;
     if (!lessX(*begin, *second))
     {
-      mergedAux[0] = *begin;
+      *mergeBegin = *begin;
       *begin = *second;
-      *second = mergedAux[0];
+      *second = *mergeBegin;
     }
   }
   break;
   default:
   {
     size_t halfDataSize = dataSize / 2;
-    VectorOfPoint::iterator middle = begin + halfDataSize;
-    mySort(begin, middle, mergedAux);
-    mySort(middle, end, mergedAux);
+    VectorOfPoint::iterator middle      = begin      + halfDataSize;
+    VectorOfPoint::iterator mergeMiddle = mergeBegin + halfDataSize;
+    mySort(begin, middle, mergeBegin, mergeMiddle);
+    mySort(middle, end, mergeMiddle, mergeEnd);
 
-    myMerge(begin, middle, end, mergedAux);
+    myMerge(begin, middle, end, mergeBegin, mergeEnd);
   }
   break;
   }

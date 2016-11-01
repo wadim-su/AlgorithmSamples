@@ -24,19 +24,11 @@
 
 
 void
-sumData(VectorOfPoint::iterator begin, VectorOfPoint::iterator end)
+singleThreadSortRecursive(const VectorOfPoint::iterator& begin, const VectorOfPoint::const_iterator& end,
+                          const VectorOfPoint::iterator& mergeBegin, const VectorOfPoint::const_iterator& mergeEnd,
+                          const std::string& callName)
 {
-  int sum = 0;
-  for (; begin != end; ++begin)
-  {
-    sum += begin->x;
-  }
-}
-
-void
-singleThreadSortRecursive(VectorOfPoint::iterator begin, VectorOfPoint::iterator end, VectorOfPoint& mergedAux, const std::string& callName)
-{
-  unsigned long duration = timeFuncInvocation(mySort, begin, end, mergedAux);
+  unsigned long duration = timeFuncInvocation(mySort, begin, end, mergeBegin, mergeEnd);
 
   std::cout << "Sort : " << callName << ", duration (ms): " << duration << '\n';
 }
@@ -49,7 +41,6 @@ singleThreadStdSort(VectorOfPoint::iterator begin, VectorOfPoint::iterator end, 
 
   std::sort(begin, end, lessX);
   //std::stable_sort(begin, end, lessX);
-  //sumData(begin, end);
 
   unsigned long duration = timerThread.GetMs();
 
@@ -57,50 +48,52 @@ singleThreadStdSort(VectorOfPoint::iterator begin, VectorOfPoint::iterator end, 
 }
 
 void
-multiThreadSortRecursive(VectorOfPoint::iterator begin, VectorOfPoint::iterator end, VectorOfPoint& mergedAux,
-  const std::string& callName, size_t currentLevel, size_t maxMultithreadLevel)
+multiThreadSortRecursive(const VectorOfPoint::iterator& begin, const VectorOfPoint::const_iterator& end,
+                         const VectorOfPoint::iterator& mergeBegin, const VectorOfPoint::const_iterator& mergeEnd,
+                         const std::string& callName, size_t currentLevel, size_t maxMultithreadLevel)
 {
-  size_t dataSize = std::distance(begin, end);
+  size_t dataSize = std::distance(static_cast<VectorOfPoint::const_iterator>(begin), end);
   size_t halfDataSize = dataSize / 2;
-  VectorOfPoint::iterator middle = begin + halfDataSize;
+  VectorOfPoint::iterator middle      = begin      + halfDataSize;
+  VectorOfPoint::iterator mergeMiddle = mergeBegin + halfDataSize;
   bool mergeNeeded = false;
 
   if (currentLevel < maxMultithreadLevel)
   {
-    std::thread thePartner(multiThreadSortRecursive, begin, middle, mergedAux, callName + "_Partner", (currentLevel + 1), maxMultithreadLevel);
-    multiThreadSortRecursive(middle, end, mergedAux, callName + "_Main", (currentLevel + 1), maxMultithreadLevel);
+    std::thread thePartner(multiThreadSortRecursive, begin, middle, mergeBegin, mergeMiddle, callName + "_Partner", (currentLevel + 1), maxMultithreadLevel);
+    multiThreadSortRecursive(middle, end, mergeMiddle, mergeEnd, callName + "_Main", (currentLevel + 1), maxMultithreadLevel);
     thePartner.join();
     mergeNeeded = true;
   }
   else if (currentLevel == maxMultithreadLevel)
   {
-    std::thread thePartner(singleThreadSortRecursive, begin, middle, mergedAux, callName + "_Partner");
-    singleThreadSortRecursive(middle, end, mergedAux, callName + "_Main");
+    std::thread thePartner(singleThreadSortRecursive, begin, middle, mergeBegin, mergeMiddle, callName + "_Partner");
+    singleThreadSortRecursive(middle, end, mergeMiddle, mergeEnd, callName + "_Main");
     thePartner.join();
     mergeNeeded = true;
   }
   else
-    singleThreadSortRecursive(begin, end, mergedAux, callName + "_Main");
+    singleThreadSortRecursive(begin, end, mergeBegin, mergeEnd, callName + "_Main");
 
   if (mergeNeeded)
   {
-    unsigned long mergeDuration = timeFuncInvocation(myMerge, begin, middle, end, mergedAux);
+    unsigned long mergeDuration = timeFuncInvocation(myMerge, begin, middle, end, mergeBegin, mergeEnd);
     std::cout << "Merge: " << callName << ", duration (ms): " << mergeDuration << '\n';
   }
 }
 
 void
-singleThreadSort(VectorOfPoint::iterator begin, VectorOfPoint::iterator end, const std::string& callName)
+singleThreadSort(const VectorOfPoint::iterator& begin, const VectorOfPoint::const_iterator& end, const std::string& callName)
 {
-  VectorOfPoint mergedAuxiliary(std::distance(begin, end));
-  singleThreadSortRecursive(begin, end, mergedAuxiliary, callName);
+  VectorOfPoint mergeBuffer(std::distance(static_cast<VectorOfPoint::const_iterator>(begin), end));
+  singleThreadSortRecursive(begin, end, mergeBuffer.begin(), mergeBuffer.end(), callName);
 }
 
 void
-multiThreadSort(VectorOfPoint::iterator begin, VectorOfPoint::iterator end, const std::string& callName, size_t maxMultithreadLevel)
+multiThreadSort(const VectorOfPoint::iterator& begin, const VectorOfPoint::const_iterator& end, const std::string& callName, size_t maxMultithreadLevel)
 {
-  VectorOfPoint mergedAuxiliary(std::distance(begin, end));
-  multiThreadSortRecursive(begin, end, mergedAuxiliary, callName, 1, maxMultithreadLevel);
+  VectorOfPoint mergeBuffer(std::distance(static_cast<VectorOfPoint::const_iterator>(begin), end));
+  multiThreadSortRecursive(begin, end, mergeBuffer.begin(), mergeBuffer.end(), callName, 1, maxMultithreadLevel);
 }
 
 void

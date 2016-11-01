@@ -74,7 +74,7 @@ void
 SortThreadProcedure(QueueOfPointRange& readToSortQueue, QueueOfPointRange& sortToMergeQueue,
   const std::atomic_bool& readFinishedFlag, std::atomic_bool& sortFinishedFlag, size_t inputDataSize)
 {
-  VectorOfPoint mergedAuxiliary(inputDataSize);
+  VectorOfPoint mergeBuffer(inputDataSize);
 
   while (true)
   {
@@ -87,7 +87,7 @@ SortThreadProcedure(QueueOfPointRange& readToSortQueue, QueueOfPointRange& sortT
     PointRange rangeToSort;
     readToSortQueue.waitAndPop(rangeToSort);
 
-    mySort(rangeToSort.begin, rangeToSort.end, mergedAuxiliary);
+    mySort(rangeToSort.begin, rangeToSort.end, mergeBuffer.begin(), mergeBuffer.end());
 
     sortToMergeQueue.push(rangeToSort);
   }
@@ -101,7 +101,7 @@ MergeThreadProcedure(QueueOfPointRange& sortToMergeQueue, const std::atomic_bool
   public:
     MergingStack(size_t inputDataSize) :
       _stack(),
-      _mergedAuxiliary(inputDataSize)
+      _mergeBuffer(inputDataSize)
     {}
 
     void PushAndMerge(const PointRange& orinaryRange)
@@ -123,7 +123,7 @@ MergeThreadProcedure(QueueOfPointRange& sortToMergeQueue, const std::atomic_bool
 
   private:
     VectorOfPointRange _stack;
-    VectorOfPoint _mergedAuxiliary;
+    VectorOfPoint _mergeBuffer;
 
     void MergeTopRecursively()
     {
@@ -150,7 +150,7 @@ MergeThreadProcedure(QueueOfPointRange& sortToMergeQueue, const std::atomic_bool
     void MergeTop(PointRange top, PointRange topButOne)
     {
       // Merge points inside these 2 ranges.
-      myMerge(topButOne.begin, top.begin, top.end, _mergedAuxiliary);
+      myMerge(topButOne.begin, top.begin, top.end, _mergeBuffer.begin(), _mergeBuffer.end());
 
       // Pop these 2 ranges.
       _stack.pop_back();
