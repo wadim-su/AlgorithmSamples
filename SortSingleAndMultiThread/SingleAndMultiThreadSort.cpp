@@ -11,6 +11,7 @@
 #include <algorithm>
 #include <limits>
 #include <iterator>
+#include <cmath>
 
 #include <chrono>
 #include <thread>
@@ -133,7 +134,7 @@ ProcessFile(const std::string& fileName)
   size_t dataSizeBytes = sizeof(VectorOfPoint) * inputDataSingleThread.size();
 
   unsigned int coreCount = std::thread::hardware_concurrency();
-  size_t maxMultithreadLevel = coreCount / 2;
+  size_t maxMultithreadLevel = static_cast<size_t>(std::floor(std::log2(coreCount)));
 
   unsigned long singleThreadDuration = timeFuncInvocation(singleThreadSort, inputDataSingleThread.begin(), inputDataSingleThread.end(), "singleThreadSort");
   unsigned long multiThreadDuration  = timeFuncInvocation(multiThreadSort , inputDataMultiThread.begin() , inputDataMultiThread.end() , "multiThreadSort", maxMultithreadLevel);
