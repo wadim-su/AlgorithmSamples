@@ -156,7 +156,7 @@ ProcessFile(const std::string& fileName)
 
   if (singleThreadDuration > multiThreadDuration)
   {
-    double persentage = singleThreadDuration == 0 ? 0 : (((double)singleThreadDuration - multiThreadDuration) / singleThreadDuration * 100);
+    double persentage = singleThreadDuration == 0 ? 0 : (((double)singleThreadDuration - multiThreadDuration) / multiThreadDuration * 100);
     std::cout.precision(2);
     std::cout << "Multithreading gain is: " << std::fixed << persentage << " %" << '\n';
   }
